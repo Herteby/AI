@@ -217,3 +217,29 @@ func listMessages(threadID string, pagination PaginationParams) (*ListMessagesRe
 
 	return &responseStruct, nil
 }
+func (fd *FunctionDefinition) UnmarshalJSON(data []byte) error {
+	// Temporary struct to unmarshal the initial JSON
+	temp := struct {
+		Name            string `json:"name"`
+		ArgumentsString string `json:"arguments"`
+	}{}
+
+	// Unmarshal the JSON into the temporary struct
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Transfer values to the FunctionDefinition struct
+	fd.Name = temp.Name
+	fd.ArgumentsString = temp.ArgumentsString
+
+	// If ArgumentsString is not empty, unmarshal it
+	if fd.ArgumentsString != "" {
+		var args FunctionArguments
+		if err := json.Unmarshal([]byte(fd.ArgumentsString), &args); err != nil {
+			return err
+		}
+		fd.Arguments = args
+	}
+	return nil
+}

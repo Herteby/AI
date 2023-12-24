@@ -48,8 +48,9 @@ type Content struct {
 }
 
 type FunctionDefinition struct {
-	Name      string            `json:"name"`
-	Arguments FunctionArguments `json:"arguments"`
+	Name            string `json:"name"`
+	ArgumentsString string `json:"arguments"`
+	Arguments       FunctionArguments
 }
 type FunctionArguments struct {
 	Command string `json:"command"`
@@ -108,7 +109,7 @@ type Message struct {
 	Object      string                 `json:"object"`
 	CreatedAt   int64                  `json:"created_at"`
 	ThreadID    string                 `json:"thread_id"`
-	Role        string                 `json:"role"`
+	Role        Role                   `json:"role"`
 	Content     []Content              `json:"content"`
 	FileIDs     []string               `json:"file_ids"`
 	AssistantID *string                `json:"assistant_id"`
@@ -120,9 +121,17 @@ type MessageObject struct {
 	ID        string    `json:"id"`
 	CreatedAt int64     `json:"created_at"`
 	ThreadID  string    `json:"thread_id"`
-	Role      string    `json:"role"`
+	Role      Role      `json:"role"`
 	Content   []Content `json:"content"`
 }
+type Role string
+
+const (
+	RoleSystem    Role = "system"
+	RoleUser      Role = "user"
+	RoleAssistant Role = "assistant"
+	RoleTool      Role = "tool"
+)
 
 type Run struct {
 	ID             string                 `json:"id"`
@@ -236,7 +245,7 @@ func startChat() error {
 		if err != nil {
 			log.Fatal(err)
 		}
-
+		var promptUser bool = false
 		// If there are runs, handle the first run
 		if len(runs.Data) > 0 {
 			firstRun := runs.Data[0]
@@ -281,6 +290,8 @@ func startChat() error {
 				if err != nil {
 					log.Fatal(err)
 				}
+			case StatusCompleted:
+				promptUser = true
 			}
 
 			// Step 3: Fetch and print messages (using CreatedAt as a cutoff)
@@ -293,27 +304,39 @@ func startChat() error {
 			}
 
 			for _, message := range reverse(messages.Data) {
-				color.Green("%+v\n", message.Content)
+				switch message.Role {
+				case RoleSystem:
+					color.White("System: %s\n", message.Content[0].Text.Value)
+				case RoleAssistant:
+					color.Cyan("Assistant: %s\n", message.Content[0].Text.Value)
+				case RoleUser:
+					color.Yellow("You: %s\n", message.Content[0].Text.Value)
+
+				}
 			}
+		} else {
+			promptUser = true
 		}
 
 		// Step 4: Prompt user for message, send it to the thread, start a new run
-		fmt.Print("You: ")
-		userInput, _ := reader.ReadString('\n')
-		userInput = strings.TrimSpace(userInput)
+		if promptUser {
+			fmt.Print("You: ")
+			userInput, _ := reader.ReadString('\n')
+			userInput = strings.TrimSpace(userInput)
 
-		if userInput == "exit" {
-			break
-		}
+			if userInput == "exit" {
+				break
+			}
 
-		_, err = createMessage(thread.ID, "user", userInput)
-		if err != nil {
-			log.Fatal(err)
-		}
+			_, err = createMessage(thread.ID, "user", userInput)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-		_, err = createRun(thread.ID, assistantId)
-		if err != nil {
-			log.Fatal(err)
+			_, err = createRun(thread.ID, assistantId)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 
